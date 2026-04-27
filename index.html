@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOR Voice FX</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #06040a;
+      --surface: #0d0a14;
+      --surface2: #14101e;
+      --amber: #e8620a;
+      --amber2: #ffaa33;
+      --blue: #3a8fff;
+      --text: #ddd5c8;
+      --muted: #6b5e52;
+      --border: #221810;
+      --green: #2ecc71;
+      --red: #ff3355;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      min-height: 100vh;
+      padding: 28px 16px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* CRT scanline overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 3px,
+        rgba(0,0,0,0.12) 3px, rgba(0,0,0,0.12) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .container { width: 100%; max-width: 600px; }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 32px 0 24px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 20px;
+      color: var(--amber);
+      text-shadow:
+        0 0 10px rgba(232,98,10,0.8),
+        0 0 30px rgba(232,98,10,0.4),
+        0 0 60px rgba(232,98,10,0.15);
+      line-height: 1.5;
+    }
+
+    .logo-sub {
+      display: block;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 14px;
+    }
+
+    /* ── Upload zone ── */
+    .upload-zone {
+      border: 2px dashed var(--amber);
+      border-radius: 4px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: rgba(232,98,10,0.025);
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+      background: rgba(232,98,10,0.07);
+      border-color: var(--amber2);
+      border-style: solid;
+    }
+
+    .upload-zone.has-file {
+      border-color: var(--green);
+      border-style: solid;
+      background: rgba(46,204,113,0.025);
+    }
+
+    .upload-icon { font-size: 44px; display: block; margin-bottom: 12px; }
+
+    .upload-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--amber);
+      margin-bottom: 6px;
+    }
+
+    .upload-zone.has-file .upload-title { color: var(--green); }
+
+    .upload-hint { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+    .file-loaded {
+      display: none;
+      margin-top: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--green);
+    }
+
+    .upload-zone.has-file .file-loaded { display: block; }
+
+    #file-input { display: none; }
+
+    /* ── Waveform ── */
+    #waveform {
+      display: none;
+      width: 100%;
+      height: 56px;
+      border-radius: 4px;
+      background: var(--surface);
+      margin-bottom: 24px;
+      cursor: pointer;
+    }
+
+    /* ── Section header ── */
+    .section-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── Setting card ── */
+    .setting {
+      background: var(--surface);
+      border-left: 3px solid var(--border);
+      border-radius: 0 4px 4px 0;
+      padding: 18px 20px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+
+    .setting:hover { border-left-color: var(--amber); }
+
+    .setting-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 17px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .setting-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+      margin-bottom: 14px;
+    }
+
+    /* ── Sliders ── */
+    .slider-ends {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 7px;
+      letter-spacing: 0.5px;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      background: var(--surface2);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 3px;
+      background: var(--amber);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(232,98,10,0.6), 0 0 20px rgba(232,98,10,0.2);
+      transition: background 0.15s;
+    }
+
+    input[type=range]::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 3px;
+      background: var(--amber);
+      border: none;
+      cursor: pointer;
+    }
+
+    input[type=range]:focus::-webkit-slider-thumb { background: var(--amber2); }
+
+    .slider-readout {
+      margin-top: 9px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--amber2);
+      text-align: right;
+      font-family: 'Barlow Condensed', sans-serif;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Sample rate radio group ── */
+    .radio-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .radio-opt { flex: 1; position: relative; }
+    .radio-opt input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+    .radio-opt label {
+      display: block;
+      padding: 10px 6px;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      text-align: center;
+      cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      transition: all 0.15s;
+      line-height: 1.5;
+    }
+
+    .radio-opt input:checked + label {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: rgba(232,98,10,0.08);
+    }
+
+    .radio-opt label:hover { border-color: var(--amber); color: var(--text); }
+
+    /* ── Toggle ── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .toggle-label-text { font-size: 13px; color: var(--muted); }
+
+    .toggle { position: relative; width: 50px; height: 28px; cursor: pointer; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      transition: all 0.2s;
+    }
+
+    .toggle-knob {
+      position: absolute;
+      top: 4px; left: 4px;
+      width: 16px; height: 16px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+
+    .toggle input:checked ~ .toggle-track {
+      background: rgba(232,98,10,0.15);
+      border-color: var(--amber);
+    }
+
+    .toggle input:checked ~ .toggle-knob {
+      transform: translateX(22px);
+      background: var(--amber);
+      box-shadow: 0 0 8px rgba(232,98,10,0.5);
+    }
+
+    /* ── Action buttons ── */
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 24px 0 12px;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 15px 12px;
+      border: 2px solid;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      transition: all 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn:disabled { opacity: 0.28; cursor: not-allowed; pointer-events: none; }
+
+    .btn-preview { border-color: var(--green); color: var(--green); }
+    .btn-preview:hover { background: rgba(46,204,113,0.08); box-shadow: 0 0 16px rgba(46,204,113,0.15); }
+    .btn-preview.playing {
+      background: rgba(46,204,113,0.1);
+      box-shadow: 0 0 20px rgba(46,204,113,0.25);
+      animation: pulse-green 1.2s ease-in-out infinite;
+    }
+
+    .btn-random { border-color: var(--blue); color: var(--blue); }
+    .btn-random:hover { background: rgba(58,143,255,0.08); box-shadow: 0 0 16px rgba(58,143,255,0.15); }
+
+    .btn-random.spinning .dice { display: inline-block; animation: spin 0.4s ease; }
+
+    /* ── Export section ── */
+    .export-wrap {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      padding: 20px;
+    }
+
+    .export-section-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .filename-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .filename-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: 'Barlow', sans-serif;
+      font-size: 14px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+      min-width: 0;
+    }
+
+    .filename-input:focus { border-color: var(--amber); }
+    .filename-input::placeholder { color: var(--muted); }
+
+    .filename-ext { font-size: 14px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+
+    .btn-export {
+      width: 100%;
+      padding: 18px;
+      font-size: 17px;
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .btn-export:hover:not(:disabled) {
+      background: rgba(232,98,10,0.1);
+      box-shadow: 0 0 24px rgba(232,98,10,0.2);
+    }
+
+    /* ── Status bar ── */
+    #status {
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 14px;
+      text-align: center;
+    }
+
+    #status.processing { color: var(--amber2); }
+    #status.success { color: var(--green); }
+    #status.error { color: var(--red); }
+
+    /* ── Dirty indicator on preview button ── */
+    .dirty-dot {
+      position: absolute;
+      top: 7px; right: 8px;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--amber2);
+      display: none;
+    }
+
+    .btn-preview.dirty .dirty-dot { display: block; }
+
+    /* ── Animations ── */
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 8px rgba(46,204,113,0.15); }
+      50% { box-shadow: 0 0 28px rgba(46,204,113,0.35); }
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(200deg) scale(1.3); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      SOR VOICE FX
+      <span class="logo-sub">Streets of Rage PCM Voice Emulator</span>
+    </div>
+  </header>
+
+  <!-- Upload zone -->
+  <div class="upload-zone" id="upload-zone">
+    <span class="upload-icon" id="upload-icon">🎙️</span>
+    <div class="upload-title" id="upload-title">Drop Your Audio Here</div>
+    <div class="upload-hint">MP3 &nbsp;·&nbsp; WAV &nbsp;·&nbsp; M4A &nbsp;·&nbsp; AIFF &nbsp;·&nbsp; OGG<br>or click / tap to browse your files</div>
+    <div class="file-loaded" id="file-loaded"></div>
+    <input type="file" id="file-input" accept="audio/*,.m4a,.aif,.aiff">
+  </div>
+
+  <!-- Waveform display -->
+  <canvas id="waveform" title="Your audio file — original waveform"></canvas>
+
+  <!-- Settings -->
+  <div class="section-label">Settings</div>
+
+  <!-- 1. Crunchiness / bit depth -->
+  <div class="setting">
+    <div class="setting-name">Crunchiness</div>
+    <div class="setting-desc">
+      The original game stored voice audio with very low "bit depth" — basically how many steps the audio could use. 
+      Lower = grittier and more retro. 8-bit is the sweet spot for the authentic Streets of Rage sound.
+    </div>
+    <div class="slider-ends"><span>⬛ Max crunch (4-bit)</span><span>Clean (12-bit) ⬜</span></div>
+    <input type="range" id="bitDepth" min="4" max="12" step="1" value="8">
+    <div class="slider-readout" id="bitDepth-read">8-bit — Classic Genesis (Authentic)</div>
+  </div>
+
+  <!-- 2. High frequency cut -->
+  <div class="setting">
+    <div class="setting-name">Cut the High Frequencies</div>
+    <div class="setting-desc">
+      The old game hardware couldn't play crispy high sounds — it had a ceiling. 
+      Turn this down to make your audio sound muffled and boxy, like it's coming out of a tiny speaker inside a 90s arcade board.
+    </div>
+    <div class="slider-ends"><span>🔇 Muffled / boxy</span><span>Bright 🔊</span></div>
+    <input type="range" id="lowPass" min="800" max="5000" step="50" value="3000">
+    <div class="slider-readout" id="lowPass-read">3,000 Hz — Authentic hardware ceiling</div>
+  </div>
+
+  <!-- 3. Sample rate -->
+  <div class="setting">
+    <div class="setting-name">Retro Level (Sample Rate)</div>
+    <div class="setting-desc">
+      Think of this as how many "snapshots" of the audio are taken per second. 
+      The fewer snapshots, the more blocky and vintage it sounds. Streets of Rage voices were mostly at 11,025.
+    </div>
+    <div class="radio-row">
+      <div class="radio-opt">
+        <input type="radio" name="sampleRate" id="sr8" value="8000">
+        <label for="sr8">Super Retro<br>8,000 / sec</label>
+      </div>
+      <div class="radio-opt">
+        <input type="radio" name="sampleRate" id="sr11" value="11025" checked>
+        <label for="sr11">✓ Classic SOR<br>11,025 / sec</label>
+      </div>
+      <div class="radio-opt">
+        <input type="radio" name="sampleRate" id="sr22" value="22050">
+        <label for="sr22">Mild Lo-fi<br>22,050 / sec</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Background hiss -->
+  <div class="setting">
+    <div class="setting-name">Background Hiss</div>
+    <div class="setting-desc">
+      The old chip hardware always had a faint electrical hiss — a bit like a cassette tape. 
+      A little bit adds authenticity. Too much sounds like a broken radio.
+    </div>
+    <div class="slider-ends"><span>🔕 Silent</span><span>Hissy 📻</span></div>
+    <input type="range" id="noise" min="-70" max="-30" step="1" value="-52">
+    <div class="slider-readout" id="noise-read">Subtle hiss — Authentic level</div>
+  </div>
+
+  <!-- 5. Input loudness / pre-gain -->
+  <div class="setting">
+    <div class="setting-name">How Loud Going In</div>
+    <div class="setting-desc">
+      Boosts the audio before processing begins. Push it higher and the signal will clip and distort as it's crunched — 
+      which can actually sound great for punchy, aggressive voices. Keep it at 1× for a clean pass.
+    </div>
+    <div class="slider-ends"><span>🔉 Quieter</span><span>Boosted / may distort 🔥</span></div>
+    <input type="range" id="gain" min="0.3" max="2.5" step="0.05" value="1.0">
+    <div class="slider-readout" id="gain-read">1.0× — Normal</div>
+  </div>
+
+  <!-- 6. Mono toggle -->
+  <div class="setting">
+    <div class="setting-name">Convert to Mono</div>
+    <div class="setting-desc">
+      Original game voices are single-channel (mono) — not stereo. Turn this on and your left/right 
+      channels will be blended into one, which is the most authentic result for voice sounds.
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label-text">Blend stereo → single channel (Mono)</span>
+      <label class="toggle">
+        <input type="checkbox" id="mono" checked>
+        <div class="toggle-track"></div>
+        <div class="toggle-knob"></div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="actions">
+    <button class="btn btn-preview" id="btn-preview" disabled>
+      <span class="dirty-dot"></span>
+      <span id="preview-label">▶&nbsp; Preview</span>
+    </button>
+    <button class="btn btn-random" id="btn-random">
+      <span class="dice">🎲</span>&nbsp; Randomise
+    </button>
+  </div>
+
+  <!-- Export -->
+  <div class="export-wrap">
+    <div class="export-section-label">Export as WAV</div>
+    <div class="filename-row">
+      <input type="text" class="filename-input" id="filename" placeholder="name your file" value="sor_voice">
+      <span class="filename-ext">.wav</span>
+    </div>
+    <button class="btn btn-export" id="btn-export" disabled>⬇&nbsp;&nbsp; Save File</button>
+  </div>
+
+  <!-- Status -->
+  <div id="status">Load an audio file above to get started</div>
+
+</div><!-- /container -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let originalBuffer  = null;
+let processedBuffer = null;
+let audioCtx        = null;
+let currentSource   = null;
+let isPlaying       = false;
+let settingsDirty   = true;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+// ── Gather settings ────────────────────────────────────────────────────────────
+function getSettings() {
+  return {
+    bitDepth  : parseInt(document.getElementById('bitDepth').value),
+    lowPassHz : parseInt(document.getElementById('lowPass').value),
+    sampleRate: parseInt(document.querySelector('input[name="sampleRate"]:checked').value),
+    noiseDB   : parseFloat(document.getElementById('noise').value),
+    preGain   : parseFloat(document.getElementById('gain').value),
+    mono      : document.getElementById('mono').checked,
+  };
+}
+
+// ── Readable labels ────────────────────────────────────────────────────────────
+function updateReadouts() {
+  const bd = parseInt(document.getElementById('bitDepth').value);
+  const bitMap = {
+    4:'4-bit — Extreme crunch', 5:'5-bit — Very gritty', 6:'6-bit — Heavy crunch',
+    7:'7-bit — Gritty and raw', 8:'8-bit — Classic Genesis (Authentic)',
+    9:'9-bit — Slightly cleaner', 10:'10-bit — Soft lo-fi',
+    11:'11-bit — Barely noticeable', 12:'12-bit — Almost clean'
+  };
+  document.getElementById('bitDepth-read').textContent = bitMap[bd] || bd + '-bit';
+
+  const lp = parseInt(document.getElementById('lowPass').value);
+  let lpLabel;
+  if (lp < 1400)      lpLabel = `${lp.toLocaleString()} Hz — Very muffled, like a phone`;
+  else if (lp < 2200) lpLabel = `${lp.toLocaleString()} Hz — Muffled / vintage`;
+  else if (lp < 3200) lpLabel = `${lp.toLocaleString()} Hz — Authentic hardware ceiling`;
+  else if (lp < 4000) lpLabel = `${lp.toLocaleString()} Hz — Slightly bright`;
+  else                lpLabel = `${lp.toLocaleString()} Hz — Fairly bright`;
+  document.getElementById('lowPass-read').textContent = lpLabel;
+
+  const db = parseFloat(document.getElementById('noise').value);
+  let noiseLabel;
+  if (db < -65)       noiseLabel = 'Barely any hiss';
+  else if (db < -58)  noiseLabel = 'Very faint hiss';
+  else if (db < -50)  noiseLabel = 'Subtle hiss — Authentic level';
+  else if (db < -43)  noiseLabel = 'Noticeable hiss';
+  else                noiseLabel = 'Heavy hiss — like a broken tape';
+  document.getElementById('noise-read').textContent = noiseLabel;
+
+  const g = parseFloat(document.getElementById('gain').value);
+  let gainLabel;
+  if (g < 0.7)        gainLabel = `${g.toFixed(2)}× — Quieter input`;
+  else if (g < 1.1)   gainLabel = `${g.toFixed(2)}× — Normal`;
+  else if (g < 1.6)   gainLabel = `${g.toFixed(2)}× — Boosted`;
+  else if (g < 2.0)   gainLabel = `${g.toFixed(2)}× — Boosted (expect some distortion)`;
+  else                gainLabel = `${g.toFixed(2)}× — Very hot (heavy distortion)`;
+  document.getElementById('gain-read').textContent = gainLabel;
+}
+
+function markDirty() {
+  settingsDirty = true;
+  if (originalBuffer) {
+    document.getElementById('btn-preview').classList.add('dirty');
+  }
+}
+
+// Wire setting inputs
+['bitDepth','lowPass','noise','gain'].forEach(id =>
+  document.getElementById(id).addEventListener('input', () => { updateReadouts(); markDirty(); })
+);
+document.querySelectorAll('input[name="sampleRate"]').forEach(el =>
+  el.addEventListener('change', markDirty)
+);
+document.getElementById('mono').addEventListener('change', markDirty);
+
+updateReadouts();
+
+// ── File upload ────────────────────────────────────────────────────────────────
+const uploadZone = document.getElementById('upload-zone');
+const fileInput  = document.getElementById('file-input');
+
+uploadZone.addEventListener('click', () => {
+  getAudioCtx(); // Must create AudioContext from direct user gesture
+  fileInput.click();
+});
+
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+async function handleFile(file) {
+  setStatus('Loading your file...', 'processing');
+  try {
+    const arrayBuf = await file.arrayBuffer();
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') await ctx.resume();
+    originalBuffer = await ctx.decodeAudioData(arrayBuf);
+
+    // Update upload zone
+    uploadZone.classList.add('has-file');
+    document.getElementById('upload-icon').textContent = '✅';
+    document.getElementById('upload-title').textContent = 'File Loaded';
+    const dur  = originalBuffer.duration.toFixed(1);
+    const ch   = originalBuffer.numberOfChannels === 1 ? 'Mono' : 'Stereo';
+    const srk  = (originalBuffer.sampleRate / 1000).toFixed(1);
+    document.getElementById('file-loaded').textContent =
+      `${file.name}  ·  ${dur}s  ·  ${ch}  ·  ${srk} kHz`;
+
+    // Auto-fill filename
+    const base = file.name.replace(/\.[^/.]+$/, '');
+    document.getElementById('filename').value = base + '_sor';
+
+    // Draw waveform
+    drawWaveform(originalBuffer);
+
+    document.getElementById('btn-preview').disabled = false;
+    document.getElementById('btn-export').disabled  = false;
+    processedBuffer = null;
+    settingsDirty   = true;
+
+    setStatus('File loaded — hit Preview to hear the effect', '');
+  } catch (err) {
+    console.error(err);
+    setStatus('Could not read that file. Try a different format.', 'error');
+  }
+}
+
+// ── Waveform canvas ────────────────────────────────────────────────────────────
+function drawWaveform(buf, color = '#e8620a') {
+  const canvas = document.getElementById('waveform');
+  canvas.style.display = 'block';
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = canvas.offsetWidth * dpr;
+  canvas.height = 56 * dpr;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  ctx.fillStyle = '#0d0a14';
+  ctx.fillRect(0, 0, W, H);
+
+  // Center line
+  ctx.strokeStyle = '#221810';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H / 2);
+  ctx.lineTo(W, H / 2);
+  ctx.stroke();
+
+  const data = buf.getChannelData(0);
+  const step = Math.max(1, Math.floor(data.length / W));
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+
+  for (let x = 0; x < W; x++) {
+    let mn = 1, mx = -1;
+    const start = x * step;
+    for (let j = 0; j < step; j++) {
+      const s = data[start + j] || 0;
+      if (s < mn) mn = s;
+      if (s > mx) mx = s;
+    }
+    const y1 = ((1 - mx) / 2) * H;
+    const y2 = ((1 - mn) / 2) * H;
+    ctx.moveTo(x + 0.5, y1);
+    ctx.lineTo(x + 0.5, Math.max(y2, y1 + 1));
+  }
+  ctx.stroke();
+}
+
+// ── Core audio processing ──────────────────────────────────────────────────────
+async function processAudio(buffer, settings) {
+  const { bitDepth, lowPassHz, sampleRate, noiseDB, preGain, mono } = settings;
+  const numCh = mono ? 1 : buffer.numberOfChannels;
+
+  // ─ Phase 1: Pre-gain + EQ + downsample via OfflineAudioContext ─
+  // The OfflineAudioContext automatically handles stereo→mono downmix
+  // when numCh=1 because the spec mixes L+R channels.
+  const phase1 = new OfflineAudioContext(
+    numCh,
+    Math.ceil(buffer.duration * sampleRate),
+    sampleRate
+  );
+
+  const src = phase1.createBufferSource();
+  src.buffer = buffer;
+
+  // Pre-gain
+  const gainNode = phase1.createGain();
+  gainNode.gain.value = preGain;
+
+  // High-pass — remove low-end mud (Genesis PCM was boxy / thin)
+  const hpf = phase1.createBiquadFilter();
+  hpf.type = 'highpass';
+  hpf.frequency.value = 220;
+  hpf.Q.value = 0.5;
+
+  // Presence boost ~900 Hz — helps voice cut through, characteristic of
+  // early game voice samples fighting against music/SFX in the mix
+  const presence = phase1.createBiquadFilter();
+  presence.type = 'peaking';
+  presence.frequency.value = 900;
+  presence.Q.value = 1.1;
+  presence.gain.value = 3.0;
+
+  // Low-pass — the bandwidth ceiling of the hardware
+  const lpf = phase1.createBiquadFilter();
+  lpf.type = 'lowpass';
+  lpf.frequency.value = Math.min(lowPassHz, sampleRate * 0.44);
+  lpf.Q.value = 0.75;
+
+  src.connect(gainNode);
+  gainNode.connect(hpf);
+  hpf.connect(presence);
+  presence.connect(lpf);
+  lpf.connect(phase1.destination);
+  src.start(0);
+
+  const downsampled = await phase1.startRendering();
+
+  // ─ Phase 2: Manual bit crush + DAC noise (in-place on Float32Array) ─
+  const steps    = Math.pow(2, bitDepth);
+  const half     = steps / 2;
+  const noiseAmp = Math.pow(10, noiseDB / 20);
+  const drive    = 1.6; // soft saturation drive factor
+
+  for (let ch = 0; ch < downsampled.numberOfChannels; ch++) {
+    const data = downsampled.getChannelData(ch);
+    for (let i = 0; i < data.length; i++) {
+      let s = data[i];
+
+      // Soft saturation — models the DAC input stage character
+      // Using tanh(x*d)/tanh(d) to keep output range ≈ [-1, 1]
+      s = Math.tanh(s * drive) / Math.tanh(drive);
+
+      // Unsigned PCM quantization — more accurate to the Genesis DAC
+      // The Genesis stored audio as unsigned 8-bit (values 0–255, centre at 128)
+      const u = (s + 1) * (half - 0.5);
+      const q = Math.max(0, Math.min(steps - 1, Math.round(u)));
+      s = q / (half - 0.5) - 1;
+
+      // DAC noise floor (characteristic electrical hiss of the YM2612 DAC)
+      s += (Math.random() * 2 - 1) * noiseAmp;
+
+      data[i] = Math.max(-1, Math.min(1, s));
+    }
+  }
+
+  // ─ Phase 3: Upsample to 44100 Hz using NEAREST-NEIGHBOR (sample-and-hold) ─
+  // This is critical — the browser's built-in resampler uses sinc interpolation
+  // which smooths the signal and loses the "stairstepping" artifact.
+  // Nearest-neighbor preserves the blocky, held-sample character of the original DAC.
+  const outRate = 44100;
+  const outLen  = Math.ceil(downsampled.duration * outRate);
+  const ratio   = outRate / downsampled.sampleRate;
+
+  // AudioBuffer constructor works in all modern browsers
+  let outBuffer;
+  try {
+    outBuffer = new AudioBuffer({ numberOfChannels: numCh, length: outLen, sampleRate: outRate });
+  } catch (_) {
+    // Older browser fallback
+    outBuffer = getAudioCtx().createBuffer(numCh, outLen, outRate);
+  }
+
+  for (let ch = 0; ch < numCh; ch++) {
+    const inData  = downsampled.getChannelData(ch);
+    const outData = outBuffer.getChannelData(ch);
+    for (let i = 0; i < outLen; i++) {
+      // Nearest neighbor: each output sample maps back to the nearest input sample
+      outData[i] = inData[Math.min(Math.floor(i / ratio), inData.length - 1)];
+    }
+  }
+
+  return outBuffer;
+}
+
+// ── Preview ────────────────────────────────────────────────────────────────────
+document.getElementById('btn-preview').addEventListener('click', async () => {
+  if (!originalBuffer) return;
+
+  // If currently playing, stop it
+  if (isPlaying) {
+    stopPlayback();
+    return;
+  }
+
+  const btn = document.getElementById('btn-preview');
+
+  // (Re)process if settings changed
+  if (settingsDirty || !processedBuffer) {
+    btn.disabled = true;
+    document.getElementById('preview-label').textContent = '⏳  Processing...';
+    setStatus('Crunching your audio...', 'processing');
+
+    try {
+      processedBuffer = await processAudio(originalBuffer, getSettings());
+      settingsDirty = false;
+      btn.classList.remove('dirty');
+    } catch (err) {
+      console.error(err);
+      setStatus('Processing failed — try a different file or settings', 'error');
+      document.getElementById('preview-label').textContent = '▶  Preview';
+      btn.disabled = false;
+      return;
+    }
+
+    // Show processed waveform briefly
+    drawWaveform(processedBuffer, '#2ecc71');
+    setTimeout(() => { if (originalBuffer) drawWaveform(originalBuffer); }, 2200);
+  }
+
+  // Play
+  const ctx = getAudioCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+
+  currentSource = ctx.createBufferSource();
+  currentSource.buffer = processedBuffer;
+  currentSource.connect(ctx.destination);
+
+  currentSource.onended = () => {
+    isPlaying = false;
+    document.getElementById('preview-label').textContent = '▶  Preview';
+    btn.classList.remove('playing');
+    btn.disabled = false;
+    setStatus('Done — tweak settings and preview again anytime', '');
+  };
+
+  currentSource.start(0);
+  isPlaying = true;
+
+  document.getElementById('preview-label').textContent = '■  Stop';
+  btn.classList.add('playing');
+  btn.classList.remove('dirty');
+  btn.disabled = false;
+  setStatus('Playing processed audio...', '');
+});
+
+function stopPlayback() {
+  if (currentSource) {
+    try { currentSource.stop(); } catch (_) {}
+    currentSource.onended = null;
+    currentSource = null;
+  }
+  isPlaying = false;
+  document.getElementById('preview-label').textContent = '▶  Preview';
+  document.getElementById('btn-preview').classList.remove('playing');
+  setStatus('Stopped.', '');
+}
+
+// ── Randomise ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-random').addEventListener('click', () => {
+  const btn = document.getElementById('btn-random');
+  btn.classList.remove('spinning');
+  void btn.offsetWidth; // force reflow to restart animation
+  btn.classList.add('spinning');
+  setTimeout(() => btn.classList.remove('spinning'), 500);
+
+  // Weighted random within authentic SOR parameter ranges
+  const bits   = [6,7,7,8,8,8,8,9,10][Math.floor(Math.random() * 9)];
+  const lp     = 1100 + Math.floor(Math.random() * 3100);   // 1100–4200
+  const srOpts = [8000, 11025, 11025, 11025, 11025, 22050]; // bias toward 11025
+  const sr     = srOpts[Math.floor(Math.random() * srOpts.length)];
+  const noise  = Math.round(-68 + Math.random() * 30);      // -68 to -38
+  const gain   = +(0.6 + Math.random() * 1.6).toFixed(2);   // 0.6–2.2
+  const mono   = Math.random() > 0.15;                       // 85% mono
+
+  document.getElementById('bitDepth').value = bits;
+  document.getElementById('lowPass').value  = lp;
+  document.querySelector(`input[name="sampleRate"][value="${sr}"]`).checked = true;
+  document.getElementById('noise').value = noise;
+  document.getElementById('gain').value  = gain;
+  document.getElementById('mono').checked = mono;
+
+  updateReadouts();
+  markDirty();
+  setStatus('Randomised — hit Preview to hear the new sound', '');
+});
+
+// ── Export ─────────────────────────────────────────────────────────────────────
+document.getElementById('btn-export').addEventListener('click', async () => {
+  if (!originalBuffer) return;
+
+  const btn = document.getElementById('btn-export');
+  btn.disabled = true;
+  setStatus('Preparing your export...', 'processing');
+
+  try {
+    if (settingsDirty || !processedBuffer) {
+      processedBuffer = await processAudio(originalBuffer, getSettings());
+      settingsDirty = false;
+      document.getElementById('btn-preview').classList.remove('dirty');
+    }
+
+    const wavData = encodeWAV(processedBuffer);
+    const blob    = new Blob([wavData], { type: 'audio/wav' });
+    const rawName = document.getElementById('filename').value.trim() || 'sor_voice';
+    const fname   = rawName.endsWith('.wav') ? rawName : rawName + '.wav';
+
+    // Use File System Access API if available — gives user folder chooser + rename
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: fname,
+          types: [{ description: 'WAV Audio File', accept: { 'audio/wav': ['.wav'] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        setStatus('✓ Saved! Your SOR voice effect is ready.', 'success');
+      } catch (e) {
+        if (e.name === 'AbortError') {
+          setStatus('Save cancelled.', '');
+        } else {
+          // Fall back to standard download
+          fallbackDownload(blob, fname);
+        }
+      }
+    } else {
+      // Safari / Firefox fallback — triggers standard browser download
+      fallbackDownload(blob, fname);
+    }
+  } catch (err) {
+    console.error(err);
+    setStatus('Export failed — ' + err.message, 'error');
+  }
+
+  btn.disabled = false;
+});
+
+function fallbackDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href    = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setStatus('✓ Downloaded to your default folder!', 'success');
+}
+
+// ── WAV encoder (16-bit PCM) ───────────────────────────────────────────────────
+function encodeWAV(audioBuf) {
+  const numCh      = audioBuf.numberOfChannels;
+  const sr         = audioBuf.sampleRate;
+  const numSamples = audioBuf.length;
+  const dataBytes  = numSamples * numCh * 2; // 16-bit = 2 bytes per sample
+
+  const buf  = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buf);
+
+  const str = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+
+  str(0,  'RIFF');
+  view.setUint32(4,  36 + dataBytes, true);
+  str(8,  'WAVE');
+  str(12, 'fmt ');
+  view.setUint32(16, 16, true);           // PCM chunk size
+  view.setUint16(20, 1, true);            // PCM format
+  view.setUint16(22, numCh, true);
+  view.setUint32(24, sr, true);
+  view.setUint32(28, sr * numCh * 2, true);
+  view.setUint16(32, numCh * 2, true);
+  view.setUint16(34, 16, true);           // bits per sample
+  str(36, 'data');
+  view.setUint32(40, dataBytes, true);
+
+  let off = 44;
+  for (let i = 0; i < numSamples; i++) {
+    for (let ch = 0; ch < numCh; ch++) {
+      const s = Math.max(-1, Math.min(1, audioBuf.getChannelData(ch)[i]);
+      view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      off += 2;
+    }
+  }
+
+  return buf;
+}
+
+// ── Status helper ──────────────────────────────────────────────────────────────
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = type ? `${type}` : '';
+}
+</script>
+</body>
+</html>
+
